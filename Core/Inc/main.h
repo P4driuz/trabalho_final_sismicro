@@ -16,7 +16,6 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __MAIN_H
@@ -26,41 +25,41 @@
 extern "C" {
 #endif
 
-/* Includes ------------------------------------------------------------------*/
+/*-----------------------------------------------------------------------
+    INCLUDES
+-----------------------------------------------------------------------*/
 #include "stm32f1xx_hal.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
 #include <string.h>
-/* USER CODE END Includes */
 
-/* Exported types ------------------------------------------------------------*/
-/* USER CODE BEGIN ET */
 
-/* USER CODE END ET */
+/*-----------------------------------------------------------------------
+    EXTERN VARIABLES
+-----------------------------------------------------------------------*/
+extern volatile int8_t Crono[];            // vetor com vals dec do cronometro
+extern volatile int8_t ValAdc[];           // vetor com vals decimais do ADC
+extern volatile int8_t ExCrono[];          // vetor externo vals dec do crono
+extern volatile int8_t ExValAdc[];         // vetor externo vals dec do ADC
 
-/* Exported constants --------------------------------------------------------*/
-/* USER CODE BEGIN EC */
 
-/* USER CODE END EC */
+/*-----------------------------------------------------------------------
+    GLOBAL FUNCTIONS PROTOTYPES
+-----------------------------------------------------------------------*/
 
-/* Exported macro ------------------------------------------------------------*/
-/* USER CODE BEGIN EM */
-
-/* USER CODE END EM */
-
-/* Exported functions prototypes ---------------------------------------------*/
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
 void Error_Handler(void);
 
-/* USER CODE BEGIN EFP */
+/**
+  * @brief  : Callback do systick, ajusta o cronometro
+  * 		  e dispara conversão do ADC
+  * @param  : None
+  * @retval : None
+  */
 void Ajusta_Crono_ADC(void);
-/* USER CODE END EFP */
 
-/* Private defines -----------------------------------------------------------*/
-
-/* USER CODE BEGIN Private defines */
-
-/* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }
