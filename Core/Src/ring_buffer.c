@@ -42,15 +42,21 @@ void ring_buffer_init(t_ring_buffer * ptr_ring_buffer,
 }
 
 /**
-  * @brief  : Coloca um elemento no ring buffer, sobrescrevendo
-  * 		  caso esteja cheio
+  * @brief  : Coloca um elemento no ring buffer
   * @param  : ptr_ring_buffer = Ponteiro para a estrutura do ring buffer
   * 		  element = Ponteiro para elemento a ser inserido
   * @retval : true = Comando enviado
   * 		  false = Comando não enviado
   */
-void ring_buffer_push(t_ring_buffer * ptr_ring_buffer, const void * element)
+bool ring_buffer_push(t_ring_buffer * ptr_ring_buffer, const void * element)
 {
+	// Verifica se o ring buffer está cheio
+	if(ptr_ring_buffer->ptr_head == ptr_ring_buffer->ptr_tail &&
+	   ptr_ring_buffer->num_elements > 0)
+	{
+		return false;
+	}
+
 	memcpy(ptr_ring_buffer->ptr_head, element, ptr_ring_buffer->size_of_element);
 
 	ptr_ring_buffer->ptr_head += ptr_ring_buffer->size_of_element;
@@ -64,6 +70,8 @@ void ring_buffer_push(t_ring_buffer * ptr_ring_buffer, const void * element)
 	{
 		ptr_ring_buffer->ptr_head = ((uint8_t*)ptr_ring_buffer->buffer);
 	}
+
+	return true;
 }
 
 /**

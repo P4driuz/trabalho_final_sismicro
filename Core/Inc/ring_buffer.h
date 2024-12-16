@@ -61,7 +61,7 @@ void ring_buffer_init(t_ring_buffer * ptr_ring_buffer,
   * @retval : true = Comando enviado
   * 		  false = Comando não enviado
   */
-void ring_buffer_push(t_ring_buffer * ptr_ring_buffer, const void * element);
+bool ring_buffer_push(t_ring_buffer * ptr_ring_buffer, const void * element);
 
 /**
   * @brief  : Retira um elemento de um ring buffer
