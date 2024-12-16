@@ -90,6 +90,31 @@ typedef struct
 
 } t_botao;
 
+// Estados LEDS
+typedef enum {
+	PISCA_LED1,
+	PISCA_LED2,
+	PISCA_LED3,
+	PISCA_LED4,
+	APAGA_LEDS,
+
+} enum_estado_leds;
+
+typedef enum {
+	INILED,
+	LIGALED,
+	DSLGLED,
+
+} enum_stt_leds;
+
+typedef enum {
+	TOCABUZ,
+	DESLBUZZ,
+	INIBUZZ,
+
+} enum_stt_buzzer;
+
+
 
 //------------------------------------------
 // LOCAL FUNCTIONS PROTOTYPES
@@ -121,10 +146,16 @@ volatile int8_t ExValAdc[] = DEFAULT_DISPLAY;         // vetor externo vals dec 
 
 const int8_t array_teste_display[] = DEFAULT_DISPLAY;
 
+enum_estado_leds sttLED = APAGA_LEDS;
+enum_stt_leds estadoleds = INILED;
+enum_stt_buzzer sttBUZZER = DESLBUZZ;
+
 enum_estado_geral estadoAtual = ESTADO_INICIAL;
 uint32_t tempoAnterior = 0;
+uint32_t tempoAnteriorLED = 0;
 bool exibirCronometro = true; // Controla se exibe o cronômetro ou ADC
 int32_t contadorAlternanciaA2 = 0; // Controla a alternância de 4 valores no A2
+int32_t contbuzzer= 0; // Controla a quantidade de buzzer
 uint32_t timestamp_varredura = 0;   // salva tempo última varredura
 
 // Estrutura de controle botão A1
@@ -218,6 +249,96 @@ void ADC1_2_IRQHandler(void)
   * @param  : None
   * @retval : None
   */
+static void maquina_leds(void)
+{
+	switch(estadoleds)
+	{
+		case PISCA_LED1:
+			switch(sttLED){
+				case INILED:
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+					sttLED = LIGALED;             
+					break;
+				case LIGALED:                    // estado para ligar o LED
+					if ((HAL_GetTick() - tempoAnteriorLED) > MS_LEDS) { 
+						tempoAnteriorLED = HAL_GetTick();
+						HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET); 
+						sttLED = DSLGLED;
+					}         
+        			break;
+				case DSLGLED:                    // estado para desligar o LED
+					if ((HAL_GetTick() - tempoAnteriorLED) > MS_LEDS) { 
+						tempoAnteriorLED = HAL_GetTick();          
+						sttLED = INILED;             // muda o estado de desligado
+        			}
+			}
+		break;
+		case PISCA_LED2:
+			switch(sttLED){
+				case INILED:                
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+					sttLED = LIGALED;              
+					break;
+				case LIGALED:                    
+					if ((HAL_GetTick() - tempoAnteriorLED) > MS_LEDS) { 
+						tempoAnteriorLED = HAL_GetTick();
+						HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET); 
+						sttLED = DSLGLED;
+					}          
+        			break;
+				case DSLGLED:                    
+					if ((HAL_GetTick() - tempoAnteriorLED) > MS_LEDS) {
+						tempoAnteriorLED = HAL_GetTick();          
+						sttLED = INILED;             
+        			}
+			}
+		break;
+		case PISCA_LED3:
+			switch(sttLED){
+				case INILED:                 
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+					sttLED = LIGALED;              
+					break;
+				case LIGALED:                   
+					if ((HAL_GetTick() - tempoAnteriorLED) > MS_LEDS) { 
+						tempoAnteriorLED = HAL_GetTick();
+						HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET); 
+						sttLED = DSLGLED;
+					}          
+        			break;
+				case DSLGLED:                    
+					if ((HAL_GetTick() - tempoAnteriorLED) > MS_LEDS) { 
+						tempoAnteriorLED = HAL_GetTick();          
+						sttLED = INILED;             
+        			}
+			}
+		break;
+		case PISCA_LED4:
+			switch(sttLED){
+				case INILED:                 
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+					sttLED = LIGALED;              
+					break;
+				case LIGALED:                    
+					if ((HAL_GetTick() - tempoAnteriorLED) > MS_LEDS) { 
+						tempoAnteriorLED = HAL_GetTick();
+						HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET); 
+						sttLED = DSLGLED;
+					}         
+        			break;
+				case DSLGLED:                    
+					if ((HAL_GetTick() - tempoAnteriorLED) > MS_LEDS) { 
+						tempoAnteriorLED = HAL_GetTick();          
+						sttLED = INILED;             
+        			}
+			}
+		break;
+		
+		
+	}
+}
+
+
 static void maquina_controle(void)
 {
 	switch(estadoAtual)
@@ -249,7 +370,36 @@ static void maquina_controle(void)
 			}
 		break;
 
-		case ESTADO_ACIONAR_BUZZER:
+		case ESTADO_ACIONAR_BUZZER: // Falta adicionar aonde recebe a requisição para zerar o contbuzzer!!
+			switch(sttBUZZER){
+				case INIBUZZ:
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
+					if(contbuzzer<QTDE_TOCA_BUZZER){
+						contbuzzer++;
+						sttBUZZER = TOCABUZZ;
+					}
+					break;
+
+				case TOCABUZZ:
+					if (HAL_GetTick() - tempoAnterior >= MS_INTERVALO_TOCA_BUZZER){
+						tempoAnteriorLED = HAL_GetTick();
+						HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+						sttBUZZER = DESLBUZZ;
+					}
+				break;
+				case DESLBUZZ:
+					if (HAL_GetTick() - tempoAnterior >= MS_INTERVALO_TOCA_BUZZER){
+						tempoAnteriorLED = HAL_GetTick();
+						sttBUZZER = INIBUZZ;
+
+					}
+				break;
+			}
+			if(contbuzzer<QTDE_TOCA_BUZZER){
+				if (HAL_GetTick() - tempoAnterior >= MS_INTERVALO_TOCA_BUZZER){
+					sttBUZZER = INIBUZZ;   
+				}	 
+			}
 			estadoAtual = ESTADO_NORMAL;
 		break;
 
@@ -281,10 +431,13 @@ static void maquina_exibicao_display(void)
 				 if(exibirCronometro)
 				 {
 					 exibe_display(Crono, PTO_CRONOMETRO);
+					 estadoleds = PISCA_LED1;
+
 				 }
 				else
 				{
 					exibe_display(ValAdc, PTO_ADC);
+					estadoleds = PISCA_LED2;
 				}
 		 break;
 
@@ -293,18 +446,22 @@ static void maquina_exibicao_display(void)
 			 {
 				 case 0:
 					exibe_display(Crono, PTO_CRONOMETRO);
+					estadoleds = PISCA_LED1;
 				 break;
 
 				 case 1:
 					exibe_display(ValAdc, PTO_ADC);
+					estadoleds = PISCA_LED2;
 				 break;
 
 				 case 2:
 					exibe_display(ExCrono, PTO_CRONOMETRO);
+					estadoleds = PISCA_LED3;
 				 break;
 
 				 case 3:
 					exibe_display(ExValAdc, PTO_ADC);
+					estadoleds = PISCA_LED4;
 				 break;
 
 				 default:
