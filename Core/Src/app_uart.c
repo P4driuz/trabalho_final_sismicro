@@ -172,20 +172,20 @@ static bool envia_comando_uart(enum_comando_uart comando)
 
 		case UART_SEND_CRONOMETRO:
 		{
-			buffer_tx[0] = conv_num_ASC(Crono[3]);
-			buffer_tx[1] = conv_num_ASC(Crono[2]);
-			buffer_tx[2] = conv_num_ASC(Crono[1]);
-			buffer_tx[3] = conv_num_ASC(Crono[0]);
+			buffer_tx[0] = conv_num_ASC(Crono[0]);
+			buffer_tx[1] = conv_num_ASC(Crono[1]);
+			buffer_tx[2] = conv_num_ASC(Crono[2]);
+			buffer_tx[3] = conv_num_ASC(Crono[3]);
 			buffer_tx[4] = 'c';
 		}
 		break;
 
 		case UART_SEND_ADC:
 		{
-			buffer_tx[0] = conv_num_ASC(ValAdc[3]);
-			buffer_tx[1] = conv_num_ASC(ValAdc[2]);
-			buffer_tx[2] = conv_num_ASC(ValAdc[1]);
-			buffer_tx[3] = conv_num_ASC(ValAdc[0]);
+			buffer_tx[0] = conv_num_ASC(ValAdc[0]);
+			buffer_tx[1] = conv_num_ASC(ValAdc[1]);
+			buffer_tx[2] = conv_num_ASC(ValAdc[2]);
+			buffer_tx[3] = conv_num_ASC(ValAdc[3]);
 			buffer_tx[4] = 'a';
 		}
 		break;
@@ -236,19 +236,19 @@ static void trata_comando_recebido(const uint8_t * buffer)
 	else if(buffer[4] == 'c')
 	{
 		// Preenche o valor do cronometro recebido
-		ExCrono[0] = conv_ASC_num(buffer[3]);
-		ExCrono[1] = conv_ASC_num(buffer[2]);
-		ExCrono[2] = conv_ASC_num(buffer[1]);
-		ExCrono[3] = conv_ASC_num(buffer[0]);
+		ExCrono[0] = conv_ASC_num(buffer[0]);
+		ExCrono[1] = conv_ASC_num(buffer[1]);
+		ExCrono[2] = conv_ASC_num(buffer[2]);
+		ExCrono[3] = conv_ASC_num(buffer[3]);
 	}
 	// Verifica se é dados do ADC
 	else if(buffer[4] == 'a')
 	{
 		// Preenche o valor do ADC recebido
-		ExValAdc[0] = conv_ASC_num(buffer[3]);
-		ExValAdc[1] = conv_ASC_num(buffer[2]);
-		ExValAdc[2] = conv_ASC_num(buffer[1]);
-		ExValAdc[3] = conv_ASC_num(buffer[0]);
+		ExValAdc[0] = conv_ASC_num(buffer[0]);
+		ExValAdc[1] = conv_ASC_num(buffer[1]);
+		ExValAdc[2] = conv_ASC_num(buffer[2]);
+		ExValAdc[3] = conv_ASC_num(buffer[3]);
 	}
 }
 
