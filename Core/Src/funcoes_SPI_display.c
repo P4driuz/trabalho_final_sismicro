@@ -156,7 +156,7 @@ void exibe_display(const int8_t * buff, int8_t ponto_decimal)
 
 	for (int i = 0; i < MAX_DIGITOS_DISPLAY; i++) DspHex[i] = buff[i];
 
-	mostrar_no_display(DspHex, 0x0A);
+	mostrar_no_display(DspHex, ponto_decimal);
 }
 
 

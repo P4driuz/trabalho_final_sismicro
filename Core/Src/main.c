@@ -47,19 +47,19 @@
 #define MODO_CRONOMETRO 			0
 
 // Definições relativas ao buzzer
-#define QTDE_TOCA_BUZZER	 		4
+#define QTDE_TOCA_BUZZER	 		5
 #define MS_INTERVALO_TOCA_BUZZER	200
 
 // Definições dos pontos decimais
 #define PTO_CRONOMETRO				X_X_
-#define PTO_ADC					X___
-
-#define DEFAULT_DISPLAY			{8,8,8,8}
-
+#define PTO_ADC						X___
+#define DEFAULT_DISPLAY				{8,8,8,8}
 
 //------------------------------------------
 // TYPEDEFS
 //------------------------------------------
+
+//Estados deboucing botoes
 typedef enum
 {
 	DB_NORMAL,
@@ -69,8 +69,20 @@ typedef enum
 
 } enum_estado_botao;
 
+// Estados requisição externa
+typedef enum
+{
+	IDLEA2,
+	REQUISITA_CRONO,
+	AGUARDA_CRONO,
+	REQUISITA_ADC,
+	AGUARDA_ADC,
+
+} enum_estado_REQA2;
+
 // Estados gerais
-typedef enum {
+typedef enum
+{
 	ESTADO_INICIAL,
 	ESTADO_NORMAL,
 	ESTADO_ALTERNANCIA_A1,
@@ -90,8 +102,9 @@ typedef struct
 
 } t_botao;
 
-// Estados LEDS
-typedef enum {
+// Estados selecao LED
+typedef enum
+{
 	PISCA_LED1,
 	PISCA_LED2,
 	PISCA_LED3,
@@ -100,22 +113,14 @@ typedef enum {
 
 } enum_estado_leds;
 
-typedef enum {
+// Estado de um LED
+typedef enum
+{
 	INILED,
 	LIGALED,
 	DSLGLED,
 
 } enum_stt_leds;
-
-typedef enum {
-	TOCABUZ,
-	DESLBUZZ,
-	INIBUZZ,
-
-} enum_stt_buzzer;
-
-
-
 //------------------------------------------
 // LOCAL FUNCTIONS PROTOTYPES
 //------------------------------------------
@@ -131,6 +136,9 @@ static void trata_botao_a3(void);
 
 static void maquina_controle(void);
 static void maquina_exibicao_display(void);
+static void maquina_leds(void);
+static void maquina_tocabuzzer(void);
+static void maquina_requisicaoA2(void);
 
 
 //------------------------------------------
@@ -139,24 +147,34 @@ static void maquina_exibicao_display(void);
 ADC_HandleTypeDef handler_adc1;
 
 // os vetores seguintes tem idx[0] = digito menos significativo no display
-volatile int8_t Crono[] = DEFAULT_DISPLAY;            // vetor com vals dec do cronometro
-volatile int8_t ValAdc[] = DEFAULT_DISPLAY;           // vetor com vals decimais do ADC
+volatile int8_t Crono[] = {0,0,0,0};            // vetor com vals dec do cronometro
+volatile int8_t Default[] = DEFAULT_DISPLAY;
+volatile int8_t ValAdc[] = {0,0,0,0};           // vetor com vals decimais do ADC
 volatile int8_t ExCrono[] = DEFAULT_DISPLAY;          // vetor externo vals dec do crono
 volatile int8_t ExValAdc[] = DEFAULT_DISPLAY;         // vetor externo vals dec do ADC
 
 const int8_t array_teste_display[] = DEFAULT_DISPLAY;
 
-enum_estado_leds sttLED = APAGA_LEDS;
-enum_stt_leds estadoleds = INILED;
-enum_stt_buzzer sttBUZZER = DESLBUZZ;
-
+enum_estado_leds estadoleds = APAGA_LEDS;
+enum_stt_leds sttLED = INILED;
+enum_stt_buzzer sttBUZZER = IDLE;
+enum_estado_REQA2 sttreqa2 = IDLEA2;
 enum_estado_geral estadoAtual = ESTADO_INICIAL;
-uint32_t tempoAnterior = 0;
+
+//tempos decorridos
 uint32_t tempoAnteriorLED = 0;
+uint32_t tempoAnteriorBUZZER = 0;
+uint32_t tempoAnteriorREQA2 = 0;
+uint32_t tempoAnterior = 0;
+uint32_t timestamp_varredura = 0;   // salva tempo última varredura
+
+//Flag que detecta se A1 foi pressionado
+uint32_t flagA1 = 0;
+
+
 bool exibirCronometro = true; // Controla se exibe o cronômetro ou ADC
 int32_t contadorAlternanciaA2 = 0; // Controla a alternância de 4 valores no A2
 int32_t contbuzzer= 0; // Controla a quantidade de buzzer
-uint32_t timestamp_varredura = 0;   // salva tempo última varredura
 
 // Estrutura de controle botão A1
 t_botao botao_a1 = (t_botao)
@@ -196,8 +214,8 @@ int main(void)
 	// Reset of all peripherals, Initializes the Flash interface and the Systick.
 	HAL_Init();
 
-	// Configure the system clock
 	SystemClock_Config();
+	// Configure the system clock
 
 	// Initialize all configured peripherals
 	MX_GPIO_Init();
@@ -214,19 +232,18 @@ int main(void)
 
 	while (1)
 	{
-		// - A1 (PA1): MOSTRA CRONOMETRO E ADC A CADA 2v/4s
-		// - A2 (PA2): REQUISITA DADOS DA PLACA DO AMIGO
-		//			   COMEÇA A MOSTRAR OS NOSSOS VALORES E OS VALORES DO AMIGO 4v/2s
-		//			   SE PRESSIONAR A1 VOLTA A MOSTRAR SO OS NOSSOS
-		// - A3 (PA3): SOLICITA ACIONAMENTO DO BUZZER DA PLACA DO AMIGO
 		verifica_botao(&botao_a1);
 		verifica_botao(&botao_a2);
 		verifica_botao(&botao_a3);
 
+		//Maquinas de estado
 		maquina_controle();
-
 		maquina_exibicao_display();
+		maquina_leds();
+		maquina_tocabuzzer();
+		maquina_requisicaoA2();
 
+		// Comunicacao UART
 		executa_transmissao_uart();
 	}
 }
@@ -245,7 +262,63 @@ void ADC1_2_IRQHandler(void)
 //------------------------------------------
 
 /**
-  * @brief  : Executa a máquina de controle geral
+  * @brief  : Apaga todos os leds
+  * @param  : None
+  * @retval : None
+  */
+static void apagaleds(void)
+{
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+	}
+
+
+
+
+/**
+  * @brief  : Máquina para tocar o buzzer
+  * @param  : None
+  * @retval : None
+  */
+static void maquina_tocabuzzer(void){
+	switch(sttBUZZER){
+	case IDLE:
+		break;
+	case INIBUZZ:
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+		sttBUZZER = TOCABUZZ;
+		tempoAnteriorBUZZER = HAL_GetTick();
+		break;
+
+	case TOCABUZZ:
+		if (HAL_GetTick() - tempoAnteriorBUZZER >= MS_INTERVALO_TOCA_BUZZER){
+			tempoAnteriorBUZZER = HAL_GetTick();
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
+			sttBUZZER = DESLBUZZ;
+		}
+	break;
+	case DESLBUZZ:
+		if (HAL_GetTick() - tempoAnteriorBUZZER >= MS_INTERVALO_TOCA_BUZZER){
+			tempoAnteriorBUZZER = HAL_GetTick();
+			contbuzzer++;
+			if(contbuzzer<QTDE_TOCA_BUZZER){
+				sttBUZZER = INIBUZZ;
+			}
+			else{
+				sttBUZZER = IDLE;
+			}
+		}
+
+	break;
+	}
+}
+
+
+
+/**
+  * @brief  : Executa a máquina de controle dos leds
   * @param  : None
   * @retval : None
   */
@@ -333,12 +406,20 @@ static void maquina_leds(void)
         			}
 			}
 		break;
+		case APAGA_LEDS:
+			apagaleds();
+		break;
 		
 		
 	}
 }
 
 
+/**
+  * @brief  : Máquina de estados para controle geral
+  * @param  : None
+  * @retval : None
+  */
 static void maquina_controle(void)
 {
 	switch(estadoAtual)
@@ -351,6 +432,7 @@ static void maquina_controle(void)
 			{
 				// Alternar entre cronômetro e ADC
 				exibirCronometro = !exibirCronometro;
+				apagaleds();
 				tempoAnterior = HAL_GetTick();
 			}
 		break;
@@ -362,45 +444,12 @@ static void maquina_controle(void)
 
 				// Alterar para o próximo valor a ser exibido no ciclo A2
 				contadorAlternanciaA2++;
-
+				apagaleds();
 				if(contadorAlternanciaA2 > 3)
 				{
 					contadorAlternanciaA2 = 0;
 				}
 			}
-		break;
-
-		case ESTADO_ACIONAR_BUZZER: // Falta adicionar aonde recebe a requisição para zerar o contbuzzer!!
-			switch(sttBUZZER){
-				case INIBUZZ:
-					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
-					if(contbuzzer<QTDE_TOCA_BUZZER){
-						contbuzzer++;
-						sttBUZZER = TOCABUZZ;
-					}
-					break;
-
-				case TOCABUZZ:
-					if (HAL_GetTick() - tempoAnterior >= MS_INTERVALO_TOCA_BUZZER){
-						tempoAnteriorLED = HAL_GetTick();
-						HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
-						sttBUZZER = DESLBUZZ;
-					}
-				break;
-				case DESLBUZZ:
-					if (HAL_GetTick() - tempoAnterior >= MS_INTERVALO_TOCA_BUZZER){
-						tempoAnteriorLED = HAL_GetTick();
-						sttBUZZER = INIBUZZ;
-
-					}
-				break;
-			}
-			if(contbuzzer<QTDE_TOCA_BUZZER){
-				if (HAL_GetTick() - tempoAnterior >= MS_INTERVALO_TOCA_BUZZER){
-					sttBUZZER = INIBUZZ;   
-				}	 
-			}
-			estadoAtual = ESTADO_NORMAL;
 		break;
 
 		default:
@@ -420,7 +469,6 @@ static void maquina_exibicao_display(void)
 	if( (HAL_GetTick() - timestamp_varredura) > MS_VARREDURA_DISPLAY)
 	{
 		timestamp_varredura = HAL_GetTick();
-
 		switch(estadoAtual)
 		{
 			 case ESTADO_INICIAL:
@@ -432,7 +480,6 @@ static void maquina_exibicao_display(void)
 				 {
 					 exibe_display(Crono, PTO_CRONOMETRO);
 					 estadoleds = PISCA_LED1;
-
 				 }
 				else
 				{
@@ -445,13 +492,23 @@ static void maquina_exibicao_display(void)
 			 switch(contadorAlternanciaA2)
 			 {
 				 case 0:
-					exibe_display(Crono, PTO_CRONOMETRO);
+					if(flagA1 == 1){
+						exibe_display(Crono, PTO_CRONOMETRO);
+					}
+					else{
+						exibe_display(Default, XXXX);
+					}
 					estadoleds = PISCA_LED1;
 				 break;
 
 				 case 1:
-					exibe_display(ValAdc, PTO_ADC);
-					estadoleds = PISCA_LED2;
+						if(flagA1 == 1){
+							exibe_display(ValAdc, PTO_ADC);
+						}
+						else{
+							exibe_display(Default, XXXX);
+						}
+						estadoleds = PISCA_LED2;
 				 break;
 
 				 case 2:
@@ -463,16 +520,50 @@ static void maquina_exibicao_display(void)
 					exibe_display(ExValAdc, PTO_ADC);
 					estadoleds = PISCA_LED4;
 				 break;
-
 				 default:
 				 break;
 			 }
 		 break;
-
 		 default:
 		 break;
 	 }
   }
+}
+
+/**
+  * @brief  : Máquina para controlar a requisicao pela UART
+  * @param  : None
+  * @retval : None
+  */
+static void maquina_requisicaoA2(void){
+	switch(sttreqa2){
+	case IDLEA2:
+		break;
+
+	case REQUISITA_CRONO:
+		insere_comando_uart(UART_REQ_CRONOMETRO);
+		tempoAnteriorREQA2 = HAL_GetTick();
+		sttreqa2 = AGUARDA_CRONO;
+	break;
+
+	case AGUARDA_CRONO:
+		if(HAL_GetTick() -tempoAnteriorREQA2 > MS_REFRESH){
+			sttreqa2 = REQUISITA_ADC;
+		}
+	break;
+
+	case REQUISITA_ADC:
+		insere_comando_uart(UART_REQ_ADC);
+		tempoAnteriorREQA2 = HAL_GetTick();
+		sttreqa2 = AGUARDA_ADC;
+	break;
+
+	case AGUARDA_ADC:
+		if(HAL_GetTick() -tempoAnteriorREQA2 > MS_REFRESH){
+			sttreqa2 = REQUISITA_CRONO;
+		}
+	break;
+	}
 }
 
 /**
@@ -528,6 +619,9 @@ static void verifica_botao(t_botao * botao)
 static void trata_botao_a1(void)
 {
 	estadoAtual = ESTADO_ALTERNANCIA_A1;
+	apagaleds();
+	flagA1 = 1;
+	sttreqa2 = IDLEA2;
 }
 
 /**
@@ -537,10 +631,9 @@ static void trata_botao_a1(void)
   */
 static void trata_botao_a2(void)
 {
-	insere_comando_uart(UART_REQ_CRONOMETRO);
-	insere_comando_uart(UART_REQ_ADC);
-
+	sttreqa2 = REQUISITA_CRONO;
 	estadoAtual = ESTADO_ALTERNANCIA_A2;
+	apagaleds();
 }
 
 /**
@@ -552,7 +645,7 @@ static void trata_botao_a3(void)
 {
 	insere_comando_uart(UART_REQ_BUZZER);
 
-	estadoAtual = ESTADO_ACIONAR_BUZZER;
+
 }
 
 /**

@@ -28,12 +28,12 @@
 #define SIZE_BUFFS_UART				5
 
 // Num. de comandos armazenados no ring buffer de transmissão
-#define SIZE_BUFF_COMANDO_TX			20
+#define SIZE_BUFF_COMANDO_TX		20
 
 // Mensagens de requisão de dados
-#define MSG_REQ_CRONOMETRO 		"rqcrn"
+#define MSG_REQ_CRONOMETRO 			"rqcrn"
 #define MSG_REQ_ADC 				"rqadc"
-#define MSG_REQ_BUZZER 			"rqbzz"
+#define MSG_REQ_BUZZER 				"rqbzz"
 
 
 /*-----------------------------------------------------------------------
@@ -51,8 +51,8 @@ static t_ring_buffer ring_buffer_comando_tx;
 static enum_comando_uart buffer_comando_tx[SIZE_BUFF_COMANDO_TX];
 
 // Buffers para entrada e saida de dados via USART
-static uint8_t buffer_tx[SIZE_BUFFS_UART];
-static uint8_t buffer_rx[SIZE_BUFFS_UART];
+ static uint8_t buffer_tx[SIZE_BUFFS_UART];
+ static uint8_t buffer_rx[SIZE_BUFFS_UART];
 
 
 /*-----------------------------------------------------------------------
@@ -108,7 +108,7 @@ void executa_transmissao_uart(void)
 {
 	// Somente prossegue com o envio se não há transmissões
 	// em andamento
-	if (HAL_UART_GetState(&handler_uart1) != HAL_UART_STATE_BUSY_TX)
+	if(__HAL_UART_GET_FLAG(&handler_uart1, UART_FLAG_TC) == RESET)
 	{
 		return;
 	}
@@ -172,21 +172,21 @@ static bool envia_comando_uart(enum_comando_uart comando)
 
 		case UART_SEND_CRONOMETRO:
 		{
-			buffer_tx[0] = conv_num_ASC(Crono[0]);
-			buffer_tx[1] = conv_num_ASC(Crono[1]);
-			buffer_tx[2] = conv_num_ASC(Crono[2]);
-			buffer_tx[3] = conv_num_ASC(Crono[3]);
+			buffer_tx[0] = conv_num_ASC(Crono[3]);
+			buffer_tx[1] = conv_num_ASC(Crono[2]);
+			buffer_tx[2] = conv_num_ASC(Crono[1]);
+			buffer_tx[3] = conv_num_ASC(Crono[0]);
 			buffer_tx[4] = 'c';
 		}
 		break;
 
 		case UART_SEND_ADC:
 		{
-			buffer_tx[0] = conv_num_ASC(ValAdc[0]);
-			buffer_tx[1] = conv_num_ASC(ValAdc[1]);
-			buffer_tx[2] = conv_num_ASC(ValAdc[2]);
-			buffer_tx[3] = conv_num_ASC(ValAdc[3]);
-			buffer_tx[4] = 'c';
+			buffer_tx[0] = conv_num_ASC(ValAdc[3]);
+			buffer_tx[1] = conv_num_ASC(ValAdc[2]);
+			buffer_tx[2] = conv_num_ASC(ValAdc[1]);
+			buffer_tx[3] = conv_num_ASC(ValAdc[0]);
+			buffer_tx[4] = 'a';
 		}
 		break;
 
@@ -197,6 +197,7 @@ static bool envia_comando_uart(enum_comando_uart comando)
 	// Transmite a mensagem
 	if(HAL_UART_Transmit_IT(&handler_uart1, buffer_tx, sizeof(buffer_tx)) == HAL_OK)
 	{
+		//flag_finish_tx = false;
 		return true;
 	}
 	else
@@ -212,35 +213,42 @@ static bool envia_comando_uart(enum_comando_uart comando)
   */
 static void trata_comando_recebido(const uint8_t * buffer)
 {
-	if(buffer[4] == 'a')
+	// Verifica se é uma requisição
+	if(buffer[0] == 'r')
 	{
-		// Preenche o valor do ADC recebido
-		ExValAdc[0] = conv_ASC_num(buffer[0]);
-		ExValAdc[1] = conv_ASC_num(buffer[1]);
-		ExValAdc[2] = conv_ASC_num(buffer[2]);
-		ExValAdc[3] = conv_ASC_num(buffer[3]);
+		if(memcmp(buffer, MSG_REQ_CRONOMETRO, SIZE_BUFFS_UART) == 0)
+		{
+			// Envia comando para enviar valor do cronometro
+			envia_comando_uart(UART_SEND_CRONOMETRO);
+		}
+		else if(memcmp(buffer, MSG_REQ_ADC, SIZE_BUFFS_UART) == 0)
+		{
+			// Envia comando para enviar valor do ADC
+			envia_comando_uart(UART_SEND_ADC);
+		}
+		else if(memcmp(buffer, MSG_REQ_BUZZER, SIZE_BUFFS_UART) == 0)
+		{
+			sttBUZZER = INIBUZZ;
+			contbuzzer = 0;
+		}
 	}
+	// Verifica se é dados de cronômetro
 	else if(buffer[4] == 'c')
 	{
 		// Preenche o valor do cronometro recebido
-		ExCrono[0] = conv_ASC_num(buffer[0]);
-		ExCrono[1] = conv_ASC_num(buffer[1]);
-		ExCrono[2] = conv_ASC_num(buffer[2]);
-		ExCrono[3] = conv_ASC_num(buffer[3]);
+		ExCrono[0] = conv_ASC_num(buffer[3]);
+		ExCrono[1] = conv_ASC_num(buffer[2]);
+		ExCrono[2] = conv_ASC_num(buffer[1]);
+		ExCrono[3] = conv_ASC_num(buffer[0]);
 	}
-	else if(memcmp(buffer, MSG_REQ_CRONOMETRO, SIZE_BUFFS_UART) == 0)
+	// Verifica se é dados do ADC
+	else if(buffer[4] == 'a')
 	{
-		// Envia comando para enviar valor do cronometro
-		envia_comando_uart(UART_SEND_CRONOMETRO);
-	}
-	else if(memcmp(buffer, MSG_REQ_ADC, SIZE_BUFFS_UART) == 0)
-	{
-		// Envia comando para enviar valor do ADC
-		envia_comando_uart(UART_SEND_ADC);
-	}
-	else if(memcmp(buffer, MSG_REQ_BUZZER, SIZE_BUFFS_UART) == 0)
-	{
-		// Muda o estado da máquina principal
+		// Preenche o valor do ADC recebido
+		ExValAdc[0] = conv_ASC_num(buffer[3]);
+		ExValAdc[1] = conv_ASC_num(buffer[2]);
+		ExValAdc[2] = conv_ASC_num(buffer[1]);
+		ExValAdc[3] = conv_ASC_num(buffer[0]);
 	}
 }
 

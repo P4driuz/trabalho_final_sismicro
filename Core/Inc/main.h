@@ -31,7 +31,14 @@ extern "C" {
 #include "stm32f1xx_hal.h"
 
 #include <string.h>
+typedef enum
+{
+	TOCABUZZ,
+	DESLBUZZ,
+	INIBUZZ,
+	IDLE,
 
+} enum_stt_buzzer;
 
 /*-----------------------------------------------------------------------
     EXTERN VARIABLES
@@ -40,7 +47,8 @@ extern volatile int8_t Crono[];            // vetor com vals dec do cronometro
 extern volatile int8_t ValAdc[];           // vetor com vals decimais do ADC
 extern volatile int8_t ExCrono[];          // vetor externo vals dec do crono
 extern volatile int8_t ExValAdc[];         // vetor externo vals dec do ADC
-
+extern enum_stt_buzzer sttBUZZER;
+extern int32_t contbuzzer;
 
 /*-----------------------------------------------------------------------
     GLOBAL FUNCTIONS PROTOTYPES
